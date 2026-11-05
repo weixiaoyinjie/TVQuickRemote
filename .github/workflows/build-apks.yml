@@ -13,6 +13,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract Android source ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p project
+          unzip -q TVQuickRemote_v1_Source.zip -d project
+          test -f project/settings.gradle
+          test -f project/build.gradle
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -25,37 +33,30 @@ jobs:
           gradle-version: '8.9'
 
       - name: Setup SDK
-        shell: bash
         run: |
-          set -e
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           MANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
-          test -x "$MANAGER"
-          "$MANAGER" --version
-
-          if [ ! -f "$SDK/platforms/android-35/android.jar" ] || [ ! -d "$SDK/build-tools/35.0.0" ]; then
+          if [ ! -f "$SDK/platforms/android-35/android.jar" ]; then
             yes | "$MANAGER" --licenses >/dev/null || true
-            "$MANAGER" --install \
-              "platforms;android-35" \
-              "build-tools;35.0.0"
+            "$MANAGER" --install "platforms;android-35" "build-tools;35.0.0"
           fi
 
       - name: Build APK
-        run: |
-          gradle :mobile:assembleDebug :tv:assembleDebug --no-daemon --stacktrace
+        working-directory: project
+        run: gradle :mobile:assembleDebug :tv:assembleDebug --no-daemon --stacktrace
 
       - name: Upload Mobile APK
         uses: actions/upload-artifact@v4
         with:
           name: TVQuickRemote-Mobile-APK
-          path: mobile/build/outputs/apk/debug/mobile-debug.apk
+          path: project/mobile/build/outputs/apk/debug/mobile-debug.apk
           if-no-files-found: error
 
       - name: Upload TV APK
         uses: actions/upload-artifact@v4
         with:
           name: TVQuickRemote-TV-Bridge-APK
-          path: tv/build/outputs/apk/debug/tv-debug.apk
+          path: project/tv/build/outputs/apk/debug/tv-debug.apk
           if-no-files-found: error
